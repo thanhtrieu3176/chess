@@ -1,29 +1,29 @@
-# Kiến trúc tổng thể — Chess Analyzer (bản đề xuất để duyệt)
+# Kiến trúc tổng thể — Chess Analyzer
 
-## 1. Tech stack (và những chỗ tôi đề xuất đổi so với yêu cầu)
+## 1. Tech stack (đã tinh gọn cho app 1 người dùng)
 
-| Thành phần | Chọn | Ghi chú |
+| Thành phần | Chọn | Lý do |
 |---|---|---|
-| Desktop shell | **Electron + electron-vite** | Giữ nguyên. Tauri nhẹ hơn (~10MB) nhưng phải viết lại toàn bộ backend bằng Rust (UCI, SQLite, Gemini…), không đáng với app cá nhân. |
-| UI | React 19 + TypeScript strict + Tailwind v4 | Giữ nguyên. |
-| State | **zustand** | Nhỏ (~1KB), đủ dùng; không cần Redux. |
-| Bàn cờ | **chessground** (tự viết wrapper React mỏng ~80 dòng) | Giữ nguyên. Hỗ trợ mũi tên/vòng tròn/tô ô sẵn. |
-| Luật cờ | **chessops** thay cho chess.js | **Đổi.** Cùng tác giả với Lichess, dùng bitboard nên nhanh hơn nhiều; có sẵn tập ô bị tấn công (cần cho SEE và phát hiện motif), parse/xuất **PGN có biến phụ + chú thích** (cần cho Sandbox, Repertoire), chuẩn hóa FEN/EPD. chess.js không có cây biến và không có API tấn công dạng bitboard. |
-| Engine | Stockfish 19 qua UCI, child_process ở main | Giữ nguyên. |
-| DB | better-sqlite3 (WAL) | Giữ nguyên — nhanh nhất cho Node, đồng bộ, đơn giản. |
-| Biểu đồ | recharts | Giữ nguyên. |
-| Validate IPC | zod v4 | Giữ nguyên. |
-| Gemini | `@google/genai`, gọi từ main | Giữ nguyên. Model để ô nhập/dropdown, mặc định một model Flash hiện hành. |
+| Desktop shell | Electron + electron-vite | Tauri nhẹ hơn nhưng phải viết lại backend bằng Rust. |
+| UI | React 19 + TypeScript strict + Tailwind v4 | |
+| State | zustand | ~1KB, không cần Redux. |
+| Bàn cờ | chessground | Có sẵn mũi tên/vòng tròn/tô ô. |
+| Luật cờ | **chessops** (thay chess.js) | Nhanh (bitboard), có tập ô bị tấn công cho SEE/motif, PGN có biến phụ. |
+| Engine | Stockfish 19 (universal binary), app **tự tải** bản chính thức từ GitHub + kiểm tra SHA-256 | |
+| DB | **`node:sqlite`** có sẵn trong Electron (thay better-sqlite3) | Không có module native → không phải biên dịch/rebuild trên Windows. |
+| Biểu đồ | recharts | |
+| Gemini | `@google/genai` | |
 | Test | vitest | |
-| Đóng gói | electron-builder → NSIS `.exe` | |
+| Đóng gói | electron-builder (NSIS) | |
 
-Lưu ý giấy phép: chessground và chessops là GPL-3.0. Dùng cá nhân thì không sao; nếu sau này phát hành công khai thì mã nguồn app cũng phải GPL-3.0.
+Bỏ so với yêu cầu ban đầu, vì app chỉ có một người dùng:
+- **zod/validate IPC**: renderer là code của chính mình, chỉ cần type TS.
+- **i18n**: chuỗi tiếng Việt viết thẳng trong component.
+- **react-window**: thư viện ván phân trang là đủ.
+- **Lichess Cloud Eval**: engine cục bộ đã đủ nhanh (~4s/ván), bớt một phụ thuộc mạng.
+- **Script benchmark riêng**: thời gian được ghi log và hiển thị trong app.
 
-### Những chỗ tôi đề xuất điều chỉnh yêu cầu
-1. **Quét nhanh dùng MultiPV = 2, không phải 1.** Phân loại *Great* ("nước duy nhất") và điều kiện tạo puzzle ("nước tốt nhất vượt trội nước thứ 2") đều cần biết nước tốt thứ 2. Với MultiPV 1 thì không thể phát hiện Great nếu nước đó không lọt vào lượt 2. MultiPV 2 tốn thêm ~30–40% thời gian — vẫn nằm trong mục tiêu < 30s/ván. MultiPV 3 chỉ dùng cho nước đang xem và lượt 2.
-2. **Dữ liệu khai cuộc không cần bảng SQLite.** File TSV a–e (~3.500 dòng) được chuyển thành `openings.json` lúc build và nạp thẳng vào `Map<EPD, Opening>` khi khởi động (~20ms). Bảng SQLite chỉ là bản sao thừa.
-3. **Motif chiến thuật chạy ở main process**, không phải Web Worker ở renderer. Mỗi vị trí chỉ mất < 1ms, và main cần kết quả này để lưu DB, gắn nhãn puzzle, đưa vào prompt Gemini. Renderer vẫn không bao giờ phải tính nặng (đúng tinh thần 8B). Nếu đo thấy chậm thì chuyển sang `utilityProcess`.
-4. **Chỉ virtualize Thư viện ván.** Danh sách nước tối đa vài trăm dòng, render thường đã < 5ms; virtualize thêm chỉ làm phức tạp việc cuộn tới nước đang chọn.
+Giấy phép: chessground, chessops và Stockfish đều là GPL-3.0. Dùng cá nhân thì không sao.
 
 ## 2. Sơ đồ tiến trình
 
@@ -32,18 +32,18 @@ Lưu ý giấy phép: chessground và chessops là GPL-3.0. Dùng cá nhân thì
 │ screens/*  components/*  store (zustand)                           │
 │ chỉ hiển thị; gọi window.api.*  (typed, không có Node)             │
 └──────────────▲───────────────────────────────┬─────────────────────┘
-   events (throttle ≤10/s)                      │ invoke (zod-validated)
+   events (throttle ≤10/s)                      │ invoke (typed)        
 ┌──────────────┴──────── preload (contextBridge) ┴────────────────────┐
 └──────────────▲───────────────────────────────┬──────────────────────┘
 ┌──────────────┴──────────── Main process ─────▼──────────────────────┐
-│ ipc/handlers ─► GameAnalyzer ─► EnginePool ─► EngineProcess × N      │
+│ ipc ─► GameAnalyzer ─► EnginePool ─► N engine quét + 1 engine live   │
 │                     │              (priority queue, watchdog)  │     │
 │                     ├─► EvalCache (LRU + SQLite)              stdin/out
-│                     ├─► CloudEval / Tablebase (net/)          ▼     │
+│                     ├─► Tablebase (net/)                      ▼     │
 │                     └─► tactics/, classify, accuracy     stockfish.exe
 │ GeminiService (rate limiter, cache, verify)                          │
 │ Chess.com / Lichess importers · Settings (safeStorage) · Logger      │
-│ SQLite (better-sqlite3, WAL)                                         │
+│ SQLite (node:sqlite, WAL)                                            │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,61 +53,39 @@ Logic cờ thuần (không phụ thuộc Node/DOM) nằm ở `src/shared/` → d
 
 ```
 chess/
-├─ package.json · electron.vite.config.ts · electron-builder.yml
-├─ tsconfig.json (+ tsconfig.node.json, tsconfig.web.json) · vitest.config.ts
-├─ .env.example · .gitignore · README.md
-├─ resources/                  icon, sounds/, openings.json (sinh từ TSV)
-├─ scripts/
-│  ├─ build-openings.ts         TSV a–e → resources/openings.json
-│  └─ bench.ts                  benchmark các chỉ tiêu ở mục 8B
+├─ package.json · electron.vite.config.ts · electron-builder.yml · tsconfig.json · vitest.config.ts
+├─ docs/ARCHITECTURE.md · README.md · .env.example
 └─ src/
-   ├─ shared/                   ← thuần TS, có unit test
-   │  ├─ ipc.ts                 tên kênh + zod schema + kiểu request/response
-   │  ├─ types.ts               Game, MoveAnalysis, EngineLine, Classification…
-   │  ├─ chess/                 fen.ts (chuẩn hóa), material.ts, phase.ts, see.ts
-   │  ├─ analysis/              winPercent.ts, accuracy.ts, classify.ts, thresholds.ts
-   │  ├─ tactics/               hanging, fork, pin, skewer, discovered, mateThreat,
-   │  │                         backRank, overloaded, sacrifice, index.ts
-   │  ├─ openings/              lookup.ts (Map EPD → opening, "nước tiếp theo")
-   │  ├─ pgn/                   tree.ts (cây nước có nhánh), clock.ts (%clk)
-   │  └─ sm2.ts
+   ├─ shared/              ← thuần TS, dùng chung, có unit test
+   │  ├─ api.ts            hợp đồng IPC (Api + sự kiện)
+   │  ├─ types.ts · fen.ts
+   │  └─ (các giai đoạn sau) analysis/ tactics/ openings/ pgn/ sm2.ts
    ├─ main/
-   │  ├─ index.ts               vòng đời app, cửa sổ, tắt engine khi thoát
-   │  ├─ logger.ts              log ra userData/logs
-   │  ├─ settings.ts            settings + API key mã hóa (safeStorage)
-   │  ├─ db/                    index.ts, migrations/001_init.sql…, repos/*.ts
-   │  ├─ engine/                uci.ts (parse info), EngineProcess.ts,
-   │  │                         EnginePool.ts, PriorityQueue.ts
-   │  ├─ analysis/              GameAnalyzer.ts (2 lượt, progressive), EvalCache.ts
-   │  ├─ net/                   http.ts (timeout+retry), chesscom.ts, lichess.ts,
-   │  │                         cloudEval.ts, tablebase.ts
-   │  ├─ gemini/                GeminiService.ts, rateLimiter.ts, verify.ts,
-   │  │                         prompts/{move,game,opening,overview,puzzle}.v1.ts
-   │  ├─ stats/                 dashboard queries
-   │  └─ ipc/                   handlers theo domain
-   ├─ preload/index.ts          expose window.api (typed)
+   │  ├─ index.ts          vòng đời app, cửa sổ, tắt engine khi thoát
+   │  ├─ ipc.ts            handler cho mọi method trong Api
+   │  ├─ db.ts             node:sqlite, WAL, migration (PRAGMA user_version)
+   │  ├─ settings.ts       cài đặt + Gemini key (safeStorage)
+   │  ├─ EvalCache.ts      cache RAM (LRU) + SQLite
+   │  ├─ logger.ts
+   │  └─ engine/           uci.ts, EngineProcess.ts, EnginePool.ts, download.ts
+   ├─ preload/index.ts     expose window.api
    └─ renderer/
-      ├─ index.html · main.tsx · App.tsx (sidebar + lazy screens)
-      ├─ i18n/                  vi.ts, en.ts, t()
-      ├─ store/                 zustand slices
-      ├─ components/            Board, EvalBar, MoveList, EngineLines, EvalChart,
-      │                         ExplanationPanel, OpeningPanel, ErrorBoundary…
-      └─ screens/               Library, Analysis, Sandbox, Stats, Puzzles,
-                                Repertoire, Settings
+      ├─ index.html
+      └─ src/              main.tsx, App.tsx, store.ts, components/, screens/
 ```
 
 ## 4. Engine (mục 2 + 8B)
 
 - **EngineProcess**: 1 tiến trình Stockfish sống suốt phiên. Handshake `uci/uciok` → `setoption` → `isready/readyok`. Một job tại một thời điểm; `stop` để hủy. Parse `info depth seldepth multipv score cp|mate [lowerbound|upperbound] nodes nps pv`.
-- **EnginePool**: N instance. Mặc định với C nhân: `N = clamp(floor((C-1)/2), 1, 4)`, `threads/instance = max(1, floor((C-1)/N))`, `Hash = 256MB / N`. Chỉnh được trong Cài đặt.
-- **PriorityQueue**: 3 mức — `interactive` (nước đang xem / sandbox, chiếm 1 instance ngay, có thể preempt job nền), `game` (ván đang mở), `background` (quét nền ván mới). Bấm vào nước chưa có kết quả → job của vị trí đó được nâng lên đầu.
+- **EnginePool**: N engine "quét" lấy việc từ một hàng đợi ưu tiên, cộng 1 engine "live" riêng để phân tích vô hạn nước đang xem/sandbox (UI luôn có đánh giá ngay, không phải xếp hàng). Mặc định với C nhân: `N = min(4, C−1)` engine × 1 thread (với thời gian ngắn mỗi vị trí, nhiều engine 1 thread hiệu quả hơn 1 engine nhiều thread); engine live dùng C−1 thread. Hash 128MB/engine.
+- **Hàng đợi ưu tiên**: `interactive` > `game` > `background`; bấm vào nước chưa phân tích thì job của vị trí đó được nâng lên đầu.
 - **Watchdog**: mỗi job có deadline (movetime + 5s); hết hạn hoặc process `exit` bất thường → kill, khởi động lại, đưa job về hàng đợi. Kết quả đã có nằm trong cache nên không mất.
 - **Phân tích ván (n+1 vị trí)**:
-  - Lượt 1: `go movetime 250` (chỉnh được), MultiPV 2. Vị trí khai cuộc (ply ≤ 20) thử Lichess Cloud Eval trước (1 request/lúc, cache, 429 → tạm dừng 60s).
+  - Lượt 1: `go movetime 250` (chỉnh được), MultiPV 2.
   - Lượt 2: `go depth 22`, MultiPV 3 cho các nước Mistake/Blunder/Miss/Brilliant/Great và các vị trí có |ΔWin%| ≥ 15.
   - Kết quả từng vị trí đẩy lên UI ngay (progressive).
-  - Ước tính: 41 vị trí ÷ 2 instance × 0.25s ≈ 5s cho lượt 1 trên máy 4 nhân.
-- **EvalCache**: LRU 5.000 vị trí trong RAM + bảng `position_cache`. Khóa `(fen chuẩn hóa, multipv)`, chỉ giữ kết quả **sâu nhất**; yêu cầu depth ≤ depth đã lưu thì trả luôn.
+  - Đo thực tế: 43 vị trí, 3 engine, 250ms/vị trí → 3,8s (máy 4 nhân).
+- **EvalCache**: LRU 5.000 vị trí trong RAM + bảng `position_cache`. Khóa là FEN chuẩn hóa; mỗi vị trí giữ kết quả sâu nhất (cùng độ sâu thì nhiều MultiPV hơn). Yêu cầu nông hơn hoặc ít biến hơn thì dùng lại luôn.
 - Tắt app: `quit` → đợi 500ms → `kill`; thêm hook `process.on('exit')` để không sót process.
 
 ## 5. Công thức & quy tắc
@@ -134,7 +112,7 @@ chess/
 
 ## 6. Database schema (SQLite, WAL)
 
-Migration: thư mục `db/migrations/NNN_*.sql`, chạy tuần tự trong transaction, phiên bản lưu bằng `PRAGMA user_version`.
+Migration: mảng `MIGRATIONS` trong `main/db.ts`, chạy tuần tự trong transaction, phiên bản lưu bằng `PRAGMA user_version`.
 
 ```sql
 CREATE TABLE settings (
@@ -194,13 +172,12 @@ CREATE TABLE moves (                 -- kết quả phân tích từng nước c
 CREATE INDEX idx_moves_class ON moves(classification);
 
 CREATE TABLE position_cache (
-  fen        TEXT NOT NULL,          -- FEN bỏ halfmove/fullmove
-  multipv    INTEGER NOT NULL,
+  fen        TEXT PRIMARY KEY,       -- FEN bỏ halfmove/fullmove
+  multipv    INTEGER NOT NULL,       -- số biến đã yêu cầu
   depth      INTEGER NOT NULL,
-  lines      TEXT NOT NULL,          -- JSON [{cp|mate, pv: uci[]}]
-  source     TEXT NOT NULL,          -- local|cloud
-  updated_at INTEGER NOT NULL,
-  PRIMARY KEY (fen, multipv)
+  lines      TEXT NOT NULL,          -- JSON [{multipv, depth, score{cp|mate} (góc nhìn Trắng), pv: uci[]}]
+  best_move  TEXT,
+  updated_at INTEGER NOT NULL
 ) WITHOUT ROWID;
 
 CREATE TABLE explanations_cache (
@@ -252,18 +229,9 @@ CREATE INDEX idx_rep_fen ON repertoire_nodes(color, fen);
 
 Ghi chú: tra lệch repertoire dùng `(color, fen)` nên các thứ tự nước khác nhau (transposition) vẫn khớp.
 
-## 7. IPC (ví dụ)
+## 7. IPC
 
-```ts
-// shared/ipc.ts
-export const ipc = {
-  'engine:analyze':  { req: z.object({ fen: z.string(), multipv: z.number().int().min(1).max(5), infinite: z.boolean() }), res: z.void() },
-  'game:analyze':    { req: z.object({ gameId: z.number().int() }), res: z.void() },
-  'games:list':      { req: GameFilter, res: z.array(GameRow) },
-  ...
-} as const;
-// events main → renderer: 'engine:info' (throttle 100ms), 'analysis:progress', 'analysis:move', 'gemini:chunk'
-```
+`src/shared/api.ts` định nghĩa interface `Api`. Mỗi method là một kênh `ipcRenderer.invoke`. Preload sinh `window.api` từ danh sách method; main đăng ký handler với cùng type, nên sai tên hoặc sai tham số sẽ báo lỗi ngay lúc compile. Sự kiện main → renderer (`onLiveUpdate`, được throttle ≤ 10 lần/giây) đi qua `webContents.send`.
 
 ## 8. Lộ trình
 

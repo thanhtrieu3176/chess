@@ -1,0 +1,12 @@
+appId: local.thanhtrieu.chessanalyzer
+productName: Chess Analyzer
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+win:
+  target: nsis
+nsis:
+  oneClick: true
+  perMachine: false

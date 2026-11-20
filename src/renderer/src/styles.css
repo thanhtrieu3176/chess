@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+
+/* Màu theo theme: đổi bằng class "light" trên <html>. */
+@theme {
+  --color-bg: #1c1b19;
+  --color-panel: #262421;
+  --color-panel-2: #312e2b;
+  --color-line: #3d3a36;
+  --color-fg: #e8e6e3;
+  --color-muted: #9e9a94;
+  --color-accent: #81b64c;
+  --color-danger: #e0624b;
+  --color-warn: #e6a23c;
+}
+
+html.light {
+  --color-bg: #f4f3ef;
+  --color-panel: #ffffff;
+  --color-panel-2: #ecebe6;
+  --color-line: #d6d4cd;
+  --color-fg: #24221f;
+  --color-muted: #6b675f;
+  --color-accent: #5d8c2f;
+  --color-danger: #c4442d;
+  --color-warn: #b7791f;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+}
+input, select, button { font: inherit; }
