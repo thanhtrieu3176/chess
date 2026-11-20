@@ -1,0 +1,4 @@
+Bộ quân cờ:
+- cburnett: Colin M.L. Burnett, GPLv2+ (đi kèm chessground)
+- merida: Armando Hernandez Marroquin, GPLv2+ (từ lichess-org/lila)
+- alpha: Eric Bentzen, "free for personal non commercial use" (từ lichess-org/lila)

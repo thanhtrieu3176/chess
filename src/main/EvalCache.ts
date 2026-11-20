@@ -52,6 +52,16 @@ export class EvalCache {
     return { ...e.r, fen, lines: e.r.lines.slice(0, multipv) }
   }
 
+  /** Kết quả tốt nhất đã có cho vị trí (bất kể độ sâu), hoặc null. */
+  peek(fen: string): AnalysisResult | null {
+    return this.get(fen, 0, 1) && this.full(fen)
+  }
+
+  private full(fen: string): AnalysisResult | null {
+    const e = this.mem.get(normalizeFen(fen))
+    return e ? { ...e.r, fen } : null
+  }
+
   put(r: AnalysisResult, multipv: number): void {
     if (r.lines.length === 0) return
     const key = normalizeFen(r.fen)

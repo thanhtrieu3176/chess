@@ -34,3 +34,7 @@ body {
   font-size: 14px;
 }
 input, select, button { font: inherit; }
+
+/* Ký hiệu phân loại vẽ ra ngoài ô (góc trên phải) → không cắt. */
+.cg-custom-svgs svg { overflow: visible; }
+cg-board square.motif { background: rgba(230, 160, 40, 0.45); }

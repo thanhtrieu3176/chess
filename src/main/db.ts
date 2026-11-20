@@ -118,6 +118,12 @@ const MIGRATIONS: string[] = [
     UNIQUE (color, parent_id, uci)
   );
   CREATE INDEX idx_rep_fen ON repertoire_nodes(color, fen);
+  `,
+  // 2: repertoire tra theo vị trí TRƯỚC nước đi (để khớp transposition khi kiểm tra lệch)
+  `
+  ALTER TABLE repertoire_nodes ADD COLUMN parent_fen TEXT NOT NULL DEFAULT '';
+  CREATE INDEX idx_rep_parent ON repertoire_nodes(color, parent_fen);
+  CREATE INDEX idx_moves_game_color ON moves(game_id, color);
   `
 ]
 

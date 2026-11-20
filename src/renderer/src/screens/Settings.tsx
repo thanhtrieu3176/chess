@@ -136,6 +136,24 @@ export default function SettingsScreen() {
             <option value="light">Sáng</option>
           </select>
         </Field>
+        <Field label="Màu bàn cờ">
+          <select className="rounded border border-line bg-panel-2 px-2 py-1.5" value={draft.boardTheme} onChange={(e) => set('boardTheme', e.target.value as Settings['boardTheme'])}>
+            <option value="brown">Nâu</option>
+            <option value="blue">Xanh dương</option>
+            <option value="green">Xanh lá</option>
+            <option value="gray">Xám</option>
+          </select>
+        </Field>
+        <Field label="Bộ quân cờ">
+          <select className="rounded border border-line bg-panel-2 px-2 py-1.5" value={draft.pieceSet} onChange={(e) => set('pieceSet', e.target.value as Settings['pieceSet'])}>
+            <option value="cburnett">CBurnett</option>
+            <option value="merida">Merida</option>
+            <option value="alpha">Alpha</option>
+          </select>
+        </Field>
+        <Field label="Âm thanh đi quân">
+          <input type="checkbox" checked={draft.sound} onChange={(e) => set('sound', e.target.checked)} />
+        </Field>
       </Section>
 
       <Section title="Engine (Stockfish)">
@@ -192,6 +210,12 @@ export default function SettingsScreen() {
         <Field label="SyzygyPath" hint="Không bắt buộc. Thư mục chứa file tablebase Syzygy.">
           <Input value={draft.syzygyPath} onChange={(e) => set('syzygyPath', e.target.value)} />
         </Field>
+        <Field label="Phân tích nền" hint="Tự quét nhanh các ván mới tải về khi rảnh.">
+          <input type="checkbox" checked={draft.backgroundAnalysis} onChange={(e) => set('backgroundAnalysis', e.target.checked)} />
+        </Field>
+        <Field label="Engine dành cho phân tích nền" hint="Giới hạn CPU khi phân tích nền (không quá số engine quét).">
+          <Input {...num('backgroundEngines', 1, 8)} />
+        </Field>
       </Section>
 
       <Section title="Gemini (giải thích bằng lời)">
@@ -209,6 +233,15 @@ export default function SettingsScreen() {
             <Input value={draft.geminiModel} onChange={(e) => set('geminiModel', e.target.value.trim())} />
             <Button onClick={() => void testGemini()}>Kiểm tra kết nối</Button>
           </div>
+        </Field>
+        <Field label="Giới hạn request/phút" hint="Gói miễn phí giới hạn số request mỗi phút; app tự xếp hàng và thử lại khi gặp lỗi 429.">
+          <Input {...num('geminiRpm', 1, 60)} />
+        </Field>
+        <Field label="Tự giải thích khoảnh khắc quan trọng" hint="Brilliant, Great, Mistake, Miss, Blunder — tải trước ở chế độ nền sau khi phân tích.">
+          <input type="checkbox" checked={draft.geminiAutoExplain} onChange={(e) => set('geminiAutoExplain', e.target.checked)} />
+        </Field>
+        <Field label="Gộp nhiều khoảnh khắc / request" hint="Tiết kiệm quota: tối đa 6 khoảnh khắc của một ván trong 1 request.">
+          <input type="checkbox" checked={draft.geminiBatch} onChange={(e) => set('geminiBatch', e.target.checked)} />
         </Field>
         {geminiMsg && <Notice kind={geminiMsg.kind}>{geminiMsg.text}</Notice>}
       </Section>

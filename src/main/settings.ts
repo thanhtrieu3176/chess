@@ -17,11 +17,19 @@ export function defaultSettings(): Settings {
     ...defaultEngineConfig(cpus().length),
     hashMb: 128,
     quickMovetimeMs: 250,
-    deepDepth: 22,
+    deepDepth: 20,
     multiPv: 3,
     syzygyPath: '',
     geminiModel: 'gemini-2.5-flash',
-    theme: 'dark'
+    geminiRpm: 8,
+    geminiAutoExplain: true,
+    geminiBatch: true,
+    backgroundAnalysis: true,
+    backgroundEngines: 1,
+    theme: 'dark',
+    boardTheme: 'brown',
+    pieceSet: 'cburnett',
+    sound: true
   }
 }
 

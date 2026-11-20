@@ -1,5 +1,5 @@
+*.log
+.env
+dist/
 node_modules/
 out/
-dist/
-.env
-*.log

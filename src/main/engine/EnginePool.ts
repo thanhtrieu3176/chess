@@ -51,6 +51,8 @@ export class EnginePool {
   private runningJobs = new Map<EngineProcess, Job>()
   private seq = 0
   private stopped = true
+  /** Số engine tối đa cùng lúc cho job 'background' (giới hạn CPU khi phân tích nền). */
+  maxBackground = 1
 
   constructor(private readonly log: Logger = () => {}) {}
 
@@ -219,9 +221,12 @@ export class EnginePool {
   }
 
   private dispatch(): void {
-    while (this.idle.length > 0 && this.queue.length > 0) {
+    while (this.idle.length > 0) {
+      const runningBg = [...this.runningJobs.values()].filter((j) => j.priority === 'background').length
+      const at = this.queue.findIndex((j) => j.priority !== 'background' || runningBg < this.maxBackground)
+      if (at < 0) return
+      const job = this.queue.splice(at, 1)[0]!
       const engine = this.idle.shift()!
-      const job = this.queue.shift()!
       this.runningJobs.set(engine, job)
       engine.analyze(job.fen, job.limit, job.multipv).then(
         (r) => {

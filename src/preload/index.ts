@@ -13,5 +13,9 @@ const api = Object.fromEntries(
 
 api.onLiveUpdate = (cb) => subscribe(EVENTS.liveUpdate, cb)
 api.onDownloadProgress = (cb) => subscribe(EVENTS.downloadProgress, cb)
+api.onAnalysisUpdate = (cb) => subscribe(EVENTS.analysisUpdate, cb)
+api.onFetchProgress = (cb) => subscribe(EVENTS.fetchProgress, cb)
+api.onExplainChunk = (cb) => subscribe(EVENTS.explainChunk, cb)
+api.onGamesChanged = (cb) => subscribe(EVENTS.gamesChanged, cb)
 
 contextBridge.exposeInMainWorld('api', api)

@@ -1,11 +1,19 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
+import { EVENTS } from '@shared/api'
 import { openDatabase } from './db'
 import { EnginePool } from './engine/EnginePool'
 import { EvalCache } from './EvalCache'
-import { registerIpc, startEngines, type Services } from './ipc'
+import { fetchAndImport, registerIpc, send, startEngines, type Services } from './ipc'
 import { initLogger, log, logError } from './logger'
 import { SettingsStore } from './settings'
+import { GamesRepo } from './services/games'
+import { GameAnalyzer } from './services/analyzer'
+import { PuzzleRepo } from './services/puzzles'
+import { RepertoireRepo } from './services/repertoire'
+import { computeStats } from './services/stats'
+import { GeminiService } from './gemini/service'
+import { Tablebase } from './net/tablebase'
 
 let mainWindow: BrowserWindow | null = null
 let services: Services | null = null
@@ -28,10 +36,10 @@ function loadDevEnv(): void {
 
 function createWindow(theme: 'dark' | 'light'): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1000,
-    minHeight: 680,
+    width: 1440,
+    height: 920,
+    minWidth: 1100,
+    minHeight: 700,
     show: false,
     backgroundColor: theme === 'dark' ? '#1c1b19' : '#f4f3ef',
     autoHideMenuBar: true,
@@ -54,6 +62,21 @@ function createWindow(theme: 'dark' | 'light'): BrowserWindow {
   return win
 }
 
+/** Việc nền khi mở app: tải ván mới của tôi, rồi quét nhanh các ván chưa phân tích. */
+async function startupJobs(s: Services): Promise<void> {
+  const cfg = s.settings.get()
+  if (cfg.autoFetchOnStart) {
+    const jobs: Promise<unknown>[] = []
+    const since = (site: 'chesscom' | 'lichess'): number => s.games.latestPlayedAt(site) ?? Date.now() - 30 * 86_400_000
+    if (cfg.chesscomUsername)
+      jobs.push(fetchAndImport(s, { site: 'chesscom', username: cfg.chesscomUsername, max: 100, since: since('chesscom') }))
+    if (cfg.lichessUsername)
+      jobs.push(fetchAndImport(s, { site: 'lichess', username: cfg.lichessUsername, max: 100, since: since('lichess') }))
+    await Promise.allSettled(jobs) // lỗi mạng đã được báo qua sự kiện, không chặn app
+  }
+  if (cfg.backgroundAnalysis) s.analyzer.enqueueBackground(s.games.unanalyzedIds(30))
+}
+
 app.whenReady().then(() => {
   const t0 = Date.now()
   const userData = app.getPath('userData')
@@ -64,22 +87,63 @@ app.whenReady().then(() => {
 
   const db = openDatabase(join(userData, 'chess.db'))
   const settings = new SettingsStore(db)
-  services = {
+  const warn = (m: string): void => log(m, 'WARN')
+  const pool = new EnginePool(warn)
+  const cache = new EvalCache(db)
+  const tablebase = new Tablebase(db, warn)
+  const games = new GamesRepo(db, cache, () => [settings.get().chesscomUsername, settings.get().lichessUsername])
+  const puzzles = new PuzzleRepo(db)
+  const repertoire = new RepertoireRepo(db)
+  const gemini = new GeminiService(
     db,
     settings,
-    pool: new EnginePool((m) => log(m, 'WARN')),
-    cache: new EvalCache(db),
+    {
+      gameDetail: (id) => {
+        const d = games.detail(id)
+        return d ? { ...d, repertoire: null } : null
+      },
+      stats: () => computeStats(db),
+      puzzle: (id) => puzzles.get(id)
+    },
+    warn
+  )
+  const s: Services = {
+    db,
+    settings,
+    pool,
+    cache,
+    games,
+    puzzles,
+    repertoire,
+    gemini,
+    tablebase,
     userData,
     logDir,
-    getWindow: () => mainWindow
+    getWindow: () => mainWindow,
+    analyzer: null as unknown as GameAnalyzer
   }
-  registerIpc(services)
+  s.analyzer = new GameAnalyzer({
+    db,
+    pool,
+    cache,
+    games,
+    settings,
+    tablebase,
+    log: warn,
+    onUpdate: (gameId, analysis) => send(s, EVENTS.analysisUpdate, { gameId, analysis }),
+    onFinished: (gameId) => {
+      send(s, EVENTS.gamesChanged)
+      void gemini.prefetchGame(gameId)
+    }
+  })
+  services = s
+  registerIpc(s)
   mainWindow = createWindow(settings.get().theme)
   mainWindow.on('closed', () => (mainWindow = null))
   log(`Khởi động trong ${Date.now() - t0}ms`)
 
-  // Khởi động engine sau khi cửa sổ đã hiện, để không làm chậm lúc mở app.
-  void startEngines(services)
+  // Engine và việc nền khởi động sau khi cửa sổ đã hiện, để không làm chậm lúc mở app.
+  void startEngines(s).then(() => startupJobs(s))
 })
 
 app.on('window-all-closed', () => app.quit())

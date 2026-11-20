@@ -4,8 +4,12 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { GeminiKeyDialog } from './components/GeminiKeyDialog'
 
 // Các màn hình tải lười để app khởi động nhanh.
+const Library = lazy(() => import('./screens/Library'))
+const Workspace = lazy(() => import('./screens/Workspace'))
+const Stats = lazy(() => import('./screens/Stats'))
+const Puzzles = lazy(() => import('./screens/Puzzles'))
+const Repertoire = lazy(() => import('./screens/Repertoire'))
 const SettingsScreen = lazy(() => import('./screens/Settings'))
-const EngineTestScreen = lazy(() => import('./screens/EngineTest'))
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'library', label: 'Thư viện ván', icon: '📚' },
@@ -17,19 +21,52 @@ const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'settings', label: 'Cài đặt', icon: '⚙️' }
 ]
 
+function ScreenView({ screen }: { screen: Screen }) {
+  switch (screen) {
+    case 'library':
+      return <Library />
+    case 'analysis':
+      return <Workspace mode="game" />
+    case 'sandbox':
+      return <Workspace mode="sandbox" />
+    case 'stats':
+      return <Stats />
+    case 'puzzles':
+      return <Puzzles />
+    case 'repertoire':
+      return <Repertoire />
+    case 'settings':
+      return <SettingsScreen />
+  }
+}
+
 export function App() {
-  const { screen, setScreen, settings, engine, loadSettings, refreshEngine } = useApp()
+  const { screen, setScreen, settings, engine, loadSettings, refreshEngine, toast } = useApp()
   const [askKey, setAskKey] = useState(false)
+  const [fetchMsg, setFetchMsg] = useState<string | null>(null)
 
   useEffect(() => {
     void loadSettings()
     void refreshEngine()
-    // Engine khởi động nền sau khi mở app → hỏi lại trạng thái vài lần.
-    const t = setInterval(() => void refreshEngine(), 2000)
+    // Engine khởi động nền sau khi mở app → hỏi lại trạng thái định kỳ.
+    const t = setInterval(() => void refreshEngine(), 3000)
     void window.api.hasGeminiKey().then((has) => {
-      if (!has && localStorage.getItem('skipGeminiKeyDialog') !== '1') setAskKey(true)
+      let skip = false
+      try {
+        skip = localStorage.getItem('skipGeminiKeyDialog') === '1'
+      } catch {
+        // bỏ qua
+      }
+      if (!has && !skip) setAskKey(true)
     })
-    return () => clearInterval(t)
+    const off = window.api.onFetchProgress((p) => {
+      setFetchMsg(p.message)
+      if (p.done) setTimeout(() => setFetchMsg(null), 6000)
+    })
+    return () => {
+      clearInterval(t)
+      off()
+    }
   }, [loadSettings, refreshEngine])
 
   if (!settings) return null
@@ -53,9 +90,13 @@ export function App() {
             {n.label}
           </button>
         ))}
-        <div className="mt-auto border-t border-line px-4 py-3 text-xs">
+        <div className="mt-auto space-y-1 border-t border-line px-4 py-3 text-xs">
+          {fetchMsg && <div className="text-muted">{fetchMsg}</div>}
           {engine?.ready ? (
-            <span className="text-accent">● {engine.name}</span>
+            <span className="text-accent">
+              ● {engine.name}
+              {engine.queued > 0 ? ` · ${engine.queued} chờ` : ''}
+            </span>
           ) : (
             <button className="text-left text-warn" onClick={() => setScreen('settings')}>
               ● {engine?.error ?? 'Đang khởi động engine...'}
@@ -67,18 +108,21 @@ export function App() {
       <main className="min-w-0 flex-1 overflow-auto">
         <ErrorBoundary area={NAV.find((n) => n.id === screen)?.label ?? screen} key={screen}>
           <Suspense fallback={<div className="p-6 text-muted">Đang tải...</div>}>
-            {screen === 'settings' ? (
-              <SettingsScreen />
-            ) : screen === 'analysis' ? (
-              <EngineTestScreen />
-            ) : (
-              <div className="p-8 text-muted">Màn hình này sẽ được làm ở các giai đoạn sau.</div>
-            )}
+            <ScreenView screen={screen} />
           </Suspense>
         </ErrorBoundary>
       </main>
 
       {askKey && <GeminiKeyDialog onClose={() => setAskKey(false)} />}
+      {toast && (
+        <div
+          className={`fixed right-4 bottom-4 z-50 max-w-md rounded-lg border px-4 py-2 shadow-lg ${
+            toast.kind === 'error' ? 'border-danger bg-panel text-danger' : toast.kind === 'ok' ? 'border-accent bg-panel' : 'border-line bg-panel'
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
     </div>
   )
 }
