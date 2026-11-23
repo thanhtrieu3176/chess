@@ -176,6 +176,9 @@ export class GameAnalyzer {
         status = 'deep'
       }
 
+      // Ván đã bị xóa trong lúc phân tích (dọn dẹp dung lượng) → bỏ qua.
+      if (!this.d.games.row(run.gameId)) return null
+
       // Phân tích nền không được ghi đè kết quả của lần phân tích (sâu hơn) do người dùng mở ván.
       if (run.priority === 'background') {
         const busy = this.current !== run && this.current?.gameId === run.gameId

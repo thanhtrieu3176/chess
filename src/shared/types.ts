@@ -9,6 +9,10 @@ export type { Classification, Motif, Phase, Opening, GameMove, Speed }
 
 
 export interface Settings {
+  /** Phiên bản bộ cài đặt (để áp dụng mặc định mới cho người dùng cũ). */
+  settingsVersion: number
+  /** Chỉ giữ N ván mới nhất (0 = không giới hạn); ván cũ hơn bị xóa để tiết kiệm dung lượng. */
+  maxGames: number
   displayName: string
   chesscomUsername: string
   lichessUsername: string
@@ -292,6 +296,19 @@ export interface Stats {
   accuracyTrend: { gameId: number; playedAt: number; accuracy: number; speed: Speed | null }[]
   ratingTrend: { playedAt: number; rating: number; speed: Speed | null }[]
   classCounts: Partial<Record<Classification, number>>
+}
+
+export interface StorageInfo {
+  dbBytes: number
+  games: number
+  cachedPositions: number
+  explanations: number
+}
+
+export interface CleanupResult {
+  deletedGames: number
+  before: number
+  after: number
 }
 
 export interface Ratings {

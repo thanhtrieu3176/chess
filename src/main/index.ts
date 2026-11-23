@@ -4,7 +4,7 @@ import { EVENTS } from '@shared/api'
 import { openDatabase } from './db'
 import { EnginePool } from './engine/EnginePool'
 import { EvalCache } from './EvalCache'
-import { fetchAndImport, registerIpc, send, startEngines, type Services } from './ipc'
+import { enforceLimit, fetchAndImport, registerIpc, send, startEngines, type Services } from './ipc'
 import { initLogger, log, logError } from './logger'
 import { SettingsStore } from './settings'
 import { GamesRepo } from './services/games'
@@ -65,16 +65,20 @@ function createWindow(theme: 'dark' | 'light'): BrowserWindow {
 /** Việc nền khi mở app: tải ván mới của tôi, rồi quét nhanh các ván chưa phân tích. */
 async function startupJobs(s: Services): Promise<void> {
   const cfg = s.settings.get()
+  // Áp dụng giới hạn số ván ngay khi mở app (ví dụ sau khi nâng cấp lên chế độ nhẹ máy).
+  enforceLimit(s)
+  // Chỉ tải đúng số ván sẽ giữ lại.
+  const fetchMax = cfg.maxGames > 0 ? cfg.maxGames : 100
   if (cfg.autoFetchOnStart) {
     const jobs: Promise<unknown>[] = []
     const since = (site: 'chesscom' | 'lichess'): number => s.games.latestPlayedAt(site) ?? Date.now() - 30 * 86_400_000
     if (cfg.chesscomUsername)
-      jobs.push(fetchAndImport(s, { site: 'chesscom', username: cfg.chesscomUsername, max: 100, since: since('chesscom') }))
+      jobs.push(fetchAndImport(s, { site: 'chesscom', username: cfg.chesscomUsername, max: fetchMax, since: since('chesscom') }))
     if (cfg.lichessUsername)
-      jobs.push(fetchAndImport(s, { site: 'lichess', username: cfg.lichessUsername, max: 100, since: since('lichess') }))
+      jobs.push(fetchAndImport(s, { site: 'lichess', username: cfg.lichessUsername, max: fetchMax, since: since('lichess') }))
     await Promise.allSettled(jobs) // lỗi mạng đã được báo qua sự kiện, không chặn app
   }
-  if (cfg.backgroundAnalysis) s.analyzer.enqueueBackground(s.games.unanalyzedIds(30))
+  if (cfg.backgroundAnalysis) s.analyzer.enqueueBackground(s.games.unanalyzedIds(fetchMax))
 }
 
 app.whenReady().then(() => {

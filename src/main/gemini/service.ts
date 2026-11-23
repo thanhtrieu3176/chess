@@ -48,7 +48,7 @@ export class GeminiService {
       if (cached) return { ...cached, ok: true, cached: true }
       if (opts.cacheOnly) return { ok: false, error: 'not_cached' }
       const r = await this.generate(tpl, data, name, onChunk)
-      this.writeCache(key, tpl, r)
+      this.writeCache(key, tpl, r, 'gameId' in req ? req.gameId : null)
       return { ok: true, ...r }
     } catch (e) {
       return { ok: false, error: friendly(e) }
@@ -101,7 +101,7 @@ export class GeminiService {
       // Hậu kiểm riêng từng khoảnh khắc với tập nước của chính nó.
       const own = parts.find((p) => p.ply === ply)!.d.allowed
       const bad = findUnknownMoves(data, own)
-      this.writeCache(key, MOVE, { data, warnings: bad.length ? [warnText(bad)] : undefined })
+      this.writeCache(key, MOVE, { data, warnings: bad.length ? [warnText(bad)] : undefined }, detail.row.id)
     }
   }
 
@@ -223,12 +223,26 @@ export class GeminiService {
     return { data: JSON.parse(row.response) as Record<string, unknown>, warnings: row.warnings ? (JSON.parse(row.warnings) as string[]) : undefined }
   }
 
-  private writeCache(key: string, tpl: PromptTemplate, r: { data: Record<string, unknown>; warnings?: string[] }): void {
+  private writeCache(
+    key: string,
+    tpl: PromptTemplate,
+    r: { data: Record<string, unknown>; warnings?: string[] },
+    gameId: number | null = null
+  ): void {
     this.db
       .prepare(
-        'INSERT OR REPLACE INTO explanations_cache (key, kind, model, prompt_version, response, warnings, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT OR REPLACE INTO explanations_cache (key, kind, model, prompt_version, response, warnings, created_at, game_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(key, tpl.kind, this.settings.get().geminiModel, tpl.version, JSON.stringify(r.data), r.warnings ? JSON.stringify(r.warnings) : null, Date.now())
+      .run(
+        key,
+        tpl.kind,
+        this.settings.get().geminiModel,
+        tpl.version,
+        JSON.stringify(r.data),
+        r.warnings ? JSON.stringify(r.warnings) : null,
+        Date.now(),
+        gameId
+      )
   }
 }
 

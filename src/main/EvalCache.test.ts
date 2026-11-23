@@ -59,6 +59,6 @@ describe('migrate', () => {
     const { db } = fresh()
     migrate(db)
     const v = db.prepare('PRAGMA user_version').get() as { user_version: number }
-    expect(v.user_version).toBe(2)
+    expect(v.user_version).toBe(3)
   })
 })

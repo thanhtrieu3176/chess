@@ -12,6 +12,7 @@ import type {
 } from '@shared/types'
 import { parseGames, playedAtOf, speedOf, userColorOf, userResultOf, type ParsedGame } from '@shared/pgn'
 import { openingsForGame } from '@shared/openings'
+import { normalizeFen } from '@shared/fen'
 import { gameAccuracy } from '@shared/analysis/accuracy'
 import { winPercent } from '@shared/analysis/winPercent'
 import { transaction } from '../db'
@@ -119,6 +120,8 @@ export class GamesRepo {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(source, source_id) DO NOTHING`)
     const users = this.usernames()
+    // Cùng một mốc thời gian cho cả lượt nhập: trong lượt, ván chơi sau được coi là mới hơn.
+    const batchTime = Date.now()
     transaction(this.db, () => {
       chunks.forEach((chunk, ci) => {
         const { games, errors } = parseGames(chunk)
@@ -148,7 +151,7 @@ export class GamesRepo {
             color,
             userResultOf(h.Result ?? '*', color),
             pgn,
-            Date.now()
+            batchTime
           )
           if (r.changes > 0) {
             result.added++
@@ -228,6 +231,63 @@ export class GamesRepo {
 
   delete(id: number): void {
     this.db.prepare('DELETE FROM games WHERE id = ?').run(id)
+  }
+
+  /**
+   * Chỉ giữ `max` ván mới nhất (theo lượt nhập gần nhất, rồi theo ngày chơi), xóa phần còn lại
+   * cùng kết quả phân tích, puzzle (CASCADE), lời giải thích và cache vị trí không còn dùng,
+   * rồi thu gọn file SQLite. max = 0: không giới hạn, chỉ dọn cache.
+   */
+  prune(max: number): { deletedGames: number; before: number; after: number } {
+    const before = this.fileBytes()
+    let deletedGames = 0
+    transaction(this.db, () => {
+      if (max > 0) {
+        deletedGames = Number(
+          this.db
+            .prepare(
+              `DELETE FROM games WHERE id NOT IN (
+                 SELECT id FROM games ORDER BY created_at DESC, played_at DESC, id DESC LIMIT ?)`
+            )
+            .run(max).changes
+        )
+      }
+      // Lời giải thích của ván đã xóa.
+      this.db.prepare('DELETE FROM explanations_cache WHERE game_id IS NOT NULL AND game_id NOT IN (SELECT id FROM games)').run()
+      // Cache đánh giá: chỉ giữ các vị trí thuộc ván còn lại.
+      const keep = new Set<string>()
+      for (const g of this.db.prepare('SELECT pgn FROM games').all() as { pgn: string }[]) {
+        const parsed = parseGames(g.pgn).games[0]
+        if (!parsed) continue
+        keep.add(normalizeFen(parsed.startFen))
+        for (const m of parsed.moves) keep.add(normalizeFen(m.fenAfter))
+      }
+      const del = this.db.prepare('DELETE FROM position_cache WHERE fen = ?')
+      for (const r of this.db.prepare('SELECT fen FROM position_cache').all() as { fen: string }[]) {
+        if (!keep.has(r.fen)) del.run(r.fen)
+      }
+      // Tablebase cache cũ hơn 30 ngày.
+      this.db.prepare('DELETE FROM tablebase_cache WHERE fetched_at < ?').run(Date.now() - 30 * 86_400_000)
+    })
+    this.cache.clearMemory()
+    // Trả dung lượng trống về cho ổ đĩa.
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE); VACUUM;')
+    return { deletedGames, before, after: this.fileBytes() }
+  }
+
+  storageInfo(): { dbBytes: number; games: number; cachedPositions: number; explanations: number } {
+    const n = (sql: string): number => (this.db.prepare(sql).get() as { n: number }).n
+    return {
+      dbBytes: this.fileBytes(),
+      games: n('SELECT COUNT(*) AS n FROM games'),
+      cachedPositions: n('SELECT COUNT(*) AS n FROM position_cache'),
+      explanations: n('SELECT COUNT(*) AS n FROM explanations_cache')
+    }
+  }
+
+  private fileBytes(): number {
+    const r = this.db.prepare('SELECT page_count * page_size AS n FROM pragma_page_count(), pragma_page_size()').get() as { n: number }
+    return r.n
   }
 
   private loadAnalysis(id: number, fens: string[]): GameAnalysis | null {

@@ -5,17 +5,24 @@ import type { Settings } from '@shared/types'
 import { defaultEngineConfig } from './engine/EnginePool'
 
 const SETTINGS_KEY = 'settings'
+/**
+ * v2: chế độ nhẹ máy — giữ 5 ván, ít engine hơn, Hash nhỏ hơn.
+ * Người dùng có cài đặt cũ (v1) được chuyển sang các giá trị này một lần.
+ */
+const SETTINGS_VERSION = 2
 const GEMINI_KEY = 'geminiKey'
 
 export function defaultSettings(): Settings {
   return {
+    settingsVersion: SETTINGS_VERSION,
+    maxGames: 5,
     displayName: 'thanhtrieu',
     chesscomUsername: 'thanhtrieu31760',
     lichessUsername: '',
     autoFetchOnStart: true,
     enginePath: null,
     ...defaultEngineConfig(cpus().length),
-    hashMb: 128,
+    hashMb: 32,
     quickMovetimeMs: 250,
     deepDepth: 20,
     multiPv: 3,
@@ -42,7 +49,14 @@ export class SettingsStore {
       | { value: string }
       | undefined
     // Gộp với mặc định để các trường mới thêm ở phiên bản sau luôn có giá trị.
-    this.cache = { ...defaultSettings(), ...(row ? (JSON.parse(row.value) as Partial<Settings>) : {}) }
+    const saved = row ? (JSON.parse(row.value) as Partial<Settings>) : {}
+    const defaults = defaultSettings()
+    this.cache = { ...defaults, ...saved }
+    if (row && (saved.settingsVersion ?? 1) < 2) {
+      // Nâng cấp lên chế độ nhẹ máy (một lần).
+      const { poolSize, poolThreads, hashMb, maxGames } = defaults
+      this.save({ settingsVersion: SETTINGS_VERSION, poolSize, poolThreads, hashMb, maxGames })
+    }
   }
 
   get(): Settings {

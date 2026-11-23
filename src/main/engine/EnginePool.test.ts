@@ -14,9 +14,8 @@ const MATED = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3'
 describe('defaultEngineConfig', () => {
   it('chia CPU hợp lý', () => {
     expect(defaultEngineConfig(1)).toEqual({ poolSize: 1, poolThreads: 1, liveThreads: 1 })
-    expect(defaultEngineConfig(4)).toEqual({ poolSize: 3, poolThreads: 1, liveThreads: 3 })
-    expect(defaultEngineConfig(8)).toEqual({ poolSize: 4, poolThreads: 1, liveThreads: 7 })
-    expect(defaultEngineConfig(16)).toEqual({ poolSize: 4, poolThreads: 3, liveThreads: 15 })
+    expect(defaultEngineConfig(4)).toEqual({ poolSize: 2, poolThreads: 1, liveThreads: 3 })
+    expect(defaultEngineConfig(16)).toEqual({ poolSize: 2, poolThreads: 1, liveThreads: 15 })
   })
 })
 

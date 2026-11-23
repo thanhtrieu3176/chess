@@ -30,7 +30,9 @@ export default function Library() {
         </Button>
       </div>
 
-      {showImport && <ImportPanel username={settings?.chesscomUsername ?? ''} lichess={settings?.lichessUsername ?? ''} notify={notify} />}
+      {showImport && (
+        <ImportPanel username={settings?.chesscomUsername ?? ''} lichess={settings?.lichessUsername ?? ''} maxGames={settings?.maxGames ?? 0} notify={notify} />
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Input className="!w-48" placeholder="Đối thủ / người chơi" onChange={(e) => set({ text: e.target.value || undefined })} />
@@ -169,11 +171,21 @@ function Accuracy({ g }: { g: GameRow }) {
   )
 }
 
-function ImportPanel({ username, lichess, notify }: { username: string; lichess: string; notify: (t: string, k?: 'ok' | 'error' | 'info') => void }) {
+function ImportPanel({
+  username,
+  lichess,
+  maxGames,
+  notify
+}: {
+  username: string
+  lichess: string
+  maxGames: number
+  notify: (t: string, k?: 'ok' | 'error' | 'info') => void
+}) {
   const [pgn, setPgn] = useState('')
   const [site, setSite] = useState<'chesscom' | 'lichess'>('chesscom')
   const [user, setUser] = useState(username)
-  const [max, setMax] = useState(50)
+  const [max, setMax] = useState(maxGames > 0 ? maxGames : 50)
   const [since, setSince] = useState('')
   const [until, setUntil] = useState('')
   const [speeds, setSpeeds] = useState<Speed[]>([])
@@ -279,6 +291,9 @@ function ImportPanel({ username, lichess, notify }: { username: string; lichess:
           {busy ? 'Đang tải...' : 'Tải ván mới'}
         </Button>
         {progress && <Notice kind={progress.message.startsWith('Lỗi') ? 'error' : 'info'}>{progress.message}</Notice>}
+        {maxGames > 0 && (
+          <div className="text-xs text-warn">App đang chỉ giữ {maxGames} ván mới nhất (đổi trong Cài đặt → Dung lượng). Ván cũ hơn sẽ tự bị xóa.</div>
+        )}
         <div className="text-xs text-muted">Chỉ tải ván chưa có. Ván mới sẽ tự được quét nhanh ở chế độ nền (nếu bật trong Cài đặt).</div>
       </div>
     </div>

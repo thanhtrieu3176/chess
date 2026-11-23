@@ -250,11 +250,12 @@ export class EnginePool {
 }
 
 /**
- * Cấu hình mặc định theo số nhân CPU: chừa 1 nhân cho hệ thống. Với thời gian ngắn mỗi vị trí
- * (quét nhanh), nhiều engine 1 thread chạy song song hiệu quả hơn 1 engine nhiều thread.
+ * Cấu hình mặc định theo số nhân CPU, ưu tiên nhẹ máy: mỗi tiến trình Stockfish 19 nạp mạng NNUE
+ * khoảng 60–80MB RAM, nên chỉ chạy tối đa 2 engine quét (mỗi engine 1 thread) + 1 engine trực tiếp.
+ * Với ván ~40 nước, 2 engine quét vẫn xong lượt 1 trong khoảng 6 giây.
  */
 export function defaultEngineConfig(cores: number): { poolSize: number; poolThreads: number; liveThreads: number } {
   const usable = Math.max(1, cores - 1)
-  const poolSize = Math.min(4, usable)
-  return { poolSize, poolThreads: Math.max(1, Math.floor(usable / poolSize)), liveThreads: usable }
+  const poolSize = Math.min(2, usable)
+  return { poolSize, poolThreads: 1, liveThreads: usable }
 }

@@ -124,6 +124,11 @@ const MIGRATIONS: string[] = [
   ALTER TABLE repertoire_nodes ADD COLUMN parent_fen TEXT NOT NULL DEFAULT '';
   CREATE INDEX idx_rep_parent ON repertoire_nodes(color, parent_fen);
   CREATE INDEX idx_moves_game_color ON moves(game_id, color);
+  `,
+  // 3: lời giải thích gắn với ván (để xóa cùng ván khi dọn dẹp dung lượng)
+  `
+  ALTER TABLE explanations_cache ADD COLUMN game_id INTEGER;
+  CREATE INDEX idx_expl_game ON explanations_cache(game_id);
   `
 ]
 

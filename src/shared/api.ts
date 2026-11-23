@@ -23,6 +23,8 @@ import type {
   RepertoireNode,
   Settings,
   Stats,
+  StorageInfo,
+  CleanupResult,
   TablebaseResult
 } from './types'
 
@@ -39,6 +41,10 @@ export interface Api {
   setGeminiKey(key: string): Promise<void>
   testGemini(): Promise<{ ok: boolean; message: string }>
   openLogFolder(): Promise<void>
+  /** Dung lượng dữ liệu hiện tại. */
+  storageInfo(): Promise<StorageInfo>
+  /** Xóa ván vượt quá giới hạn "số ván giữ lại", dọn cache, thu gọn file dữ liệu. */
+  cleanupStorage(): Promise<CleanupResult>
 
   // Engine
   pickEngineFile(): Promise<string | null>
@@ -113,6 +119,8 @@ export const API_METHODS = [
   'setGeminiKey',
   'testGemini',
   'openLogFolder',
+  'storageInfo',
+  'cleanupStorage',
   'pickEngineFile',
   'testEngine',
   'downloadStockfish',

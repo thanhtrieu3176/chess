@@ -2,9 +2,9 @@ import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 let logFile: string | null = null
-const MAX_SIZE = 5 * 1024 * 1024
+const MAX_SIZE = 1024 * 1024
 
-/** Ghi log ra <userData>/logs/app.log (giữ 1 bản cũ app.old.log khi vượt 5MB). */
+/** Ghi log ra <userData>/logs/app.log (giữ 1 bản cũ app.old.log khi vượt 1MB). */
 export function initLogger(dir: string): string {
   mkdirSync(dir, { recursive: true })
   logFile = join(dir, 'app.log')

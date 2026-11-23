@@ -32,12 +32,22 @@ Vào **Cài đặt → Engine**:
 - Bấm **"Tự tải Stockfish 19"**. App tải bản chính thức `stockfish-windows-x86-64-universal.zip` từ GitHub (~78MB), kiểm tra SHA-256 rồi giải nén vào thư mục dữ liệu. Bản 19 tự nhận diện CPU (AVX2, AVX-512...).
 - Hoặc bấm **"Chọn file..."** để dùng file `stockfish.exe` bạn đã có.
 
-Mặc định với máy C nhân:
-- Quét cả ván: min(4, C−1) engine × 1 thread.
+Mặc định ở **chế độ nhẹ máy**, với máy C nhân:
+- Quét cả ván: 2 engine × 1 thread.
 - Engine trực tiếp (nước đang xem, sandbox): C−1 thread.
+- Hash 32MB mỗi engine.
 - Phân tích nền: dùng tối đa 1 engine.
 
 Tất cả đều chỉnh được trong Cài đặt.
+
+## Dung lượng
+
+Mặc định app **chỉ giữ 5 ván mới nhất** (Cài đặt → Dung lượng → "Số ván giữ lại"; 0 = không giới hạn).
+- Khi thêm ván mới, ván cũ nhất tự bị xóa, kèm kết quả phân tích, puzzle, lời giải thích và cache vị trí của ván đó.
+- File dữ liệu được thu gọn sau mỗi lần xóa.
+- Tự tải ván cũng chỉ lấy đúng số ván này.
+- "Mới nhất" tính theo lần nhập gần nhất: một ván cũ bạn vừa dán vào vẫn được giữ.
+- Repertoire không bị ảnh hưởng.
 
 ## Gemini API key
 

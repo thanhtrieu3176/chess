@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { DownloadProgress, Settings } from '@shared/types'
+import type { DownloadProgress, Settings, StorageInfo } from '@shared/types'
 import { useApp } from '../store'
 import { Button, Field, Input, Notice, Section } from '../components/ui'
 
@@ -15,6 +15,10 @@ export default function SettingsScreen() {
   const [hasKey, setHasKey] = useState(false)
   const [geminiMsg, setGeminiMsg] = useState<Msg>(null)
   const [saved, setSaved] = useState(false)
+  const [storage, setStorage] = useState<StorageInfo | null>(null)
+  const [cleaning, setCleaning] = useState(false)
+  const refreshStorage = () => void window.api.storageInfo().then(setStorage)
+  useEffect(refreshStorage, [])
 
   useEffect(() => setDraft(settings), [settings])
   useEffect(() => {
@@ -72,7 +76,10 @@ export default function SettingsScreen() {
   }
 
   const saveAll = async () => {
+    const shrinking = draft.maxGames > 0 && storage && storage.games > draft.maxGames
+    if (shrinking && !confirm(`Chỉ giữ ${draft.maxGames} ván mới nhất sẽ XÓA ${storage.games - draft.maxGames} ván cũ (kèm kết quả phân tích, puzzle). Tiếp tục?`)) return
     await saveSettings(draft)
+    refreshStorage()
     const engineChanged = (['poolSize', 'poolThreads', 'liveThreads', 'hashMb', 'syzygyPath'] as const).some(
       (k) => draft[k] !== settings?.[k]
     )
@@ -156,6 +163,38 @@ export default function SettingsScreen() {
         </Field>
       </Section>
 
+      <Section title="Dung lượng">
+        <Field
+          label="Số ván giữ lại"
+          hint="Chỉ giữ N ván mới nhất; ván cũ hơn tự bị xóa (cùng kết quả phân tích và puzzle của ván đó). 0 = không giới hạn. Tự tải ván cũng chỉ lấy đúng N ván."
+        >
+          <Input {...num('maxGames', 0, 10000)} />
+        </Field>
+        {storage && (
+          <Notice kind="info">
+            Dữ liệu: {(storage.dbBytes / 1024 / 1024).toFixed(2)} MB · {storage.games} ván · {storage.cachedPositions} vị trí đã phân tích ·{' '}
+            {storage.explanations} lời giải thích đã lưu
+          </Notice>
+        )}
+        <Field label="" hint="Xóa ván vượt giới hạn, dọn cache không còn dùng, thu gọn file dữ liệu.">
+          <Button
+            disabled={cleaning}
+            onClick={async () => {
+              setCleaning(true)
+              const r = await window.api.cleanupStorage()
+              setCleaning(false)
+              refreshStorage()
+              setEngineMsg(null)
+              alert(
+                `Đã dọn dẹp: xóa ${r.deletedGames} ván, dữ liệu ${(r.before / 1024 / 1024).toFixed(2)} MB → ${(r.after / 1024 / 1024).toFixed(2)} MB`
+              )
+            }}
+          >
+            {cleaning ? 'Đang dọn...' : '🧹 Dọn dẹp ngay'}
+          </Button>
+        </Field>
+      </Section>
+
       <Section title="Engine (Stockfish)">
         <Field label="File engine">
           <div className="flex gap-2">
@@ -195,7 +234,7 @@ export default function SettingsScreen() {
         <Field label="Thread engine trực tiếp" hint="Dùng khi xem từng nước / sandbox.">
           <Input {...num('liveThreads', 1, 64)} />
         </Field>
-        <Field label="Hash mỗi engine (MB)">
+        <Field label="Hash mỗi engine (MB)" hint="RAM ≈ Hash × (số engine quét + 1) + ~70MB mạng NNUE mỗi engine. 32MB là đủ cho phân tích ván.">
           <Input {...num('hashMb', 16, 4096)} />
         </Field>
         <Field label="Quét nhanh (ms / vị trí)">

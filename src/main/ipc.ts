@@ -94,6 +94,17 @@ async function testEngine(path: string): Promise<EngineInfo> {
   }
 }
 
+/** Áp dụng giới hạn "số ván giữ lại" sau mỗi lần thêm ván. */
+export function enforceLimit(s: Services): void {
+  const max = s.settings.get().maxGames
+  if (max <= 0) return
+  const total = s.games.storageInfo().games
+  if (total <= max) return
+  const r = s.games.prune(max)
+  log(`Dọn dẹp: xóa ${r.deletedGames} ván cũ, dữ liệu ${(r.before / 1e6).toFixed(1)}MB → ${(r.after / 1e6).toFixed(1)}MB`)
+  send(s, EVENTS.gamesChanged)
+}
+
 /** Tải ván từ Chess.com/Lichess, chỉ lấy ván chưa có; ván mới được xếp hàng phân tích nền. */
 export async function fetchAndImport(s: Services, opts: FetchOptions): Promise<ImportResult> {
   const progress = (message: string, done = false, result?: ImportResult): void =>
@@ -102,6 +113,8 @@ export async function fetchAndImport(s: Services, opts: FetchOptions): Promise<I
     const fetcher = opts.site === 'chesscom' ? fetchChesscom : fetchLichess
     const raw = await fetcher(opts, (id) => s.games.has(opts.site, id), progress)
     const result = s.games.importRaw(raw)
+    enforceLimit(s)
+    result.ids = result.ids.filter((id) => s.games.row(id) !== null)
     progress(`Đã tải ${result.added} ván mới${result.skipped ? `, bỏ qua ${result.skipped} ván đã có` : ''}`, true, result)
     if (result.added > 0) {
       send(s, EVENTS.gamesChanged)
@@ -133,6 +146,7 @@ export function registerIpc(s: Services): void {
         send(s, EVENTS.gamesChanged)
       }
       s.pool.maxBackground = after.backgroundEngines
+      if (after.maxGames !== before.maxGames) enforceLimit(s)
       return after
     },
     hasGeminiKey: async () => s.settings.getGeminiKey() !== null,
@@ -157,6 +171,12 @@ export function registerIpc(s: Services): void {
     },
     openLogFolder: async () => {
       await shell.openPath(s.logDir)
+    },
+    storageInfo: async () => s.games.storageInfo(),
+    cleanupStorage: async () => {
+      const r = s.games.prune(s.settings.get().maxGames)
+      send(s, EVENTS.gamesChanged)
+      return r
     },
 
     pickEngineFile: async () => {
@@ -229,6 +249,8 @@ export function registerIpc(s: Services): void {
     importPgn: async (text) => {
       const r = s.games.importPgn(text)
       if (r.added) {
+        enforceLimit(s)
+        r.ids = r.ids.filter((id) => s.games.row(id) !== null)
         send(s, EVENTS.gamesChanged)
         s.analyzer.enqueueBackground(r.ids)
       }

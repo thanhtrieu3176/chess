@@ -2,7 +2,7 @@ import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import type { AnalysisResult, EngineLine } from '@shared/types'
 import { normalizeFen } from '@shared/fen'
 
-const MEMORY_LIMIT = 5000
+const MEMORY_LIMIT = 500
 
 /** multipv = số biến đã YÊU CẦU (vị trí ít nước hợp lệ có thể trả ít dòng hơn). */
 interface Entry {
@@ -70,6 +70,11 @@ export class EvalCache {
       this.remember(key, { r, multipv })
     }
     this.putStmt.run(key, multipv, r.depth, JSON.stringify(r.lines), r.bestMove, Date.now())
+  }
+
+  /** Xóa cache RAM (sau khi dọn dẹp DB). */
+  clearMemory(): void {
+    this.mem.clear()
   }
 
   private remember(key: string, e: Entry): void {

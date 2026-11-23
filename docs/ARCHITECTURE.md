@@ -87,7 +87,8 @@ chess/
 ## 4. Engine (mục 2 + 8B)
 
 - **EngineProcess**: 1 tiến trình Stockfish sống suốt phiên. Handshake `uci/uciok` → `setoption` → `isready/readyok`. Một job tại một thời điểm; `stop` để hủy. Parse `info depth seldepth multipv score cp|mate [lowerbound|upperbound] nodes nps pv`.
-- **EnginePool**: N engine "quét" lấy việc từ một hàng đợi ưu tiên, cộng 1 engine "live" riêng để phân tích vô hạn nước đang xem/sandbox (UI luôn có đánh giá ngay, không phải xếp hàng). Mặc định với C nhân: `N = min(4, C−1)` engine × 1 thread (với thời gian ngắn mỗi vị trí, nhiều engine 1 thread hiệu quả hơn 1 engine nhiều thread); engine live dùng C−1 thread. Hash 128MB/engine.
+- **EnginePool**: N engine "quét" lấy việc từ một hàng đợi ưu tiên, cộng 1 engine "live" riêng để phân tích vô hạn nước đang xem/sandbox (UI luôn có đánh giá ngay, không phải xếp hàng). Mặc định (chế độ nhẹ máy): `N = min(2, C−1)` engine × 1 thread; engine live dùng C−1 thread; Hash 32MB/engine. Mỗi tiến trình Stockfish 19 tốn thêm ~70MB cho mạng NNUE, nên giữ ít tiến trình.
+- **Giới hạn dung lượng**: `maxGames` (mặc định 5) — sau mỗi lần nhập/tải ván và khi mở app, `GamesRepo.prune()` xóa các ván ngoài N ván mới nhất (theo lượt nhập rồi ngày chơi). CASCADE xóa `moves` và `puzzles`; xóa thêm `explanations_cache` theo `game_id` (migration 3), `position_cache` không thuộc ván còn lại, `tablebase_cache` cũ hơn 30 ngày; rồi `VACUUM`.
 - **Hàng đợi ưu tiên**: `interactive` > `game` > `background`; bấm vào nước chưa phân tích thì job của vị trí đó được nâng lên đầu.
 - **Watchdog**: cứ 5 giây gửi `isready`; không có `readyok` trong 5 giây (treo) hoặc process `exit` bất thường → kill, khởi động lại, đưa job đang dở về hàng đợi (tối đa 2 lần). Kết quả đã có nằm trong cache nên không mất.
 - **Phân tích nền**: ván mới tải về được quét nhanh với độ ưu tiên `background`, dùng tối đa `backgroundEngines` engine (giới hạn CPU). Phân tích nền không ghi đè kết quả phân tích sâu.
@@ -97,7 +98,7 @@ chess/
   - Vị trí ≤ 7 quân: tra Lichess Tablebase (cache SQLite, mất mạng thì bỏ qua 60 giây).
   - Kết quả từng vị trí đẩy lên UI ngay (progressive).
   - Đo thực tế: 43 vị trí, 3 engine, 250ms/vị trí → 3,8s (máy 4 nhân).
-- **EvalCache**: LRU 5.000 vị trí trong RAM + bảng `position_cache`. Khóa là FEN chuẩn hóa; mỗi vị trí giữ kết quả sâu nhất (cùng độ sâu thì nhiều MultiPV hơn). Yêu cầu nông hơn hoặc ít biến hơn thì dùng lại luôn.
+- **EvalCache**: LRU 500 vị trí trong RAM + bảng `position_cache`. Khóa là FEN chuẩn hóa; mỗi vị trí giữ kết quả sâu nhất (cùng độ sâu thì nhiều MultiPV hơn). Yêu cầu nông hơn hoặc ít biến hơn thì dùng lại luôn.
 - Tắt app: `quit` → đợi 500ms → `kill`; thêm hook `process.on('exit')` để không sót process.
 
 ## 5. Công thức & quy tắc

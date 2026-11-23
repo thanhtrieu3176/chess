@@ -10,3 +10,8 @@ win:
 nsis:
   oneClick: true
   perMachine: false
+# Chỉ giữ ngôn ngữ giao diện Chromium cần dùng (bỏ ~40MB file ngôn ngữ khác).
+electronLanguages:
+  - vi
+  - en-US
+compression: maximum
