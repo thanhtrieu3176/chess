@@ -7,7 +7,7 @@ import type { SettingsStore } from '../settings'
 import { RateLimiter } from './rateLimiter'
 import { findUnknownMoves } from './verify'
 import { gameData, moveData, openingData, overviewData, puzzleData, type PromptData } from './context'
-import { GAME, MOMENTS, MOVE, OPENING, OVERVIEW, PUZZLE, systemInstruction, type PromptTemplate } from './prompts'
+import { BEST, GAME, MOMENTS, MOVE, OPENING, OVERVIEW, PUZZLE, systemInstruction, type PromptTemplate } from './prompts'
 
 const TIMEOUT_MS = 60_000
 const MAX_429_RETRIES = 3
@@ -118,6 +118,14 @@ export class GeminiService {
         const m = d.moves[req.ply - 1]
         if (!m) throw new Error('Nước đi không tồn tại')
         return { tpl: MOVE, data: moveData(d, req.ply, name), key: k(MOVE, m.fenBefore, m.uci, d.row.userColor ?? '-') }
+      }
+      case 'best': {
+        const d = this.ctx.gameDetail(req.gameId)
+        if (!d) throw new Error('Không tìm thấy ván')
+        const m = d.moves[req.ply - 1]
+        if (!m) throw new Error('Nước đi không tồn tại')
+        const best = d.analysis?.moves[req.ply - 1]?.bestUci ?? ''
+        return { tpl: BEST, data: moveData(d, req.ply, name), key: k(BEST, m.fenBefore, m.uci, best, d.row.userColor ?? '-') }
       }
       case 'position':
         throw new Error('Hãy dùng giải thích trong ván đã phân tích')

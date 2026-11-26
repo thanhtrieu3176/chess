@@ -22,7 +22,11 @@ const LABELS: Record<string, string> = {
   diem_yeu: 'Điểm yếu',
   goi_y_luyen_tap: 'Gợi ý luyện tập',
   vi_sao_loi_giai_dung: 'Vì sao lời giải đúng',
-  vi_sao_nuoc_trong_van_sai: 'Vì sao nước trong ván sai'
+  vi_sao_nuoc_trong_van_sai: 'Vì sao nước trong ván sai',
+  nuoc_tot_nhat: 'Nước tốt nhất',
+  vi_sao_tot: 'Vì sao nước này tốt',
+  dien_bien_sau_do: 'Diễn biến sau đó',
+  so_voi_nuoc_da_di: 'So với nước bạn đã đi'
 }
 
 function Value({ v, onPly }: { v: unknown; onPly?: (ply: number) => void }) {

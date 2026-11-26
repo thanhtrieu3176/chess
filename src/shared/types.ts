@@ -261,6 +261,8 @@ export interface FetchProgress {
 
 export type ExplainRequest =
   | { kind: 'move'; gameId: number; ply: number }
+  /** Giải thích riêng nước tốt nhất tại nước `ply` (vì sao nó tốt). */
+  | { kind: 'best'; gameId: number; ply: number }
   | { kind: 'position'; fen: string; uci: string }
   | { kind: 'game'; gameId: number }
   | { kind: 'opening'; fen: string }

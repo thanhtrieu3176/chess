@@ -132,3 +132,20 @@ export const PUZZLE: PromptTemplate = {
   },
   task: 'Giải thích lời giải của bài tập (puzzle) tạo từ sai lầm của chính học trò: vì sao lời giải đúng và vì sao nước học trò đã đi trong ván là sai.'
 }
+
+export const BEST: PromptTemplate = {
+  kind: 'best',
+  version: 1,
+  schema: {
+    type: 'object',
+    properties: {
+      nuoc_tot_nhat: { ...str, description: 'Nước tốt nhất (SAN) và ý chính trong 1 câu' },
+      vi_sao_tot: { ...str, description: 'Vì sao nước này tốt: mối đe dọa tạo ra, điểm yếu khai thác, quân được cải thiện' },
+      dien_bien_sau_do: { ...str, description: 'Diễn giải biến chính của engine bắt đầu bằng nước này: các bên làm gì tiếp theo' },
+      so_voi_nuoc_da_di: { ...str, description: 'So sánh với nước đã đi (để trống nếu đã đi đúng nước tốt nhất)' },
+      bai_hoc: { ...str, description: '1 nguyên tắc rút ra để lần sau tự tìm được nước như vậy' }
+    },
+    required: ['nuoc_tot_nhat', 'vi_sao_tot', 'dien_bien_sau_do', 'so_voi_nuoc_da_di', 'bai_hoc']
+  },
+  task: 'Tập trung vào NƯỚC TỐT NHẤT của engine tại vị trí này: giải thích vì sao nó tốt, dựa trên biến chính của engine và các motif đã phát hiện. Nếu học trò đã đi nước khác, so sánh ngắn gọn với nước đã đi.'
+}

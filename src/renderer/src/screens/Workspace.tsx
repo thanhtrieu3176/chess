@@ -20,6 +20,7 @@ import type {
 } from '@shared/types'
 import { CLASS_INFO, CLASSIFICATIONS, KEY_MOMENTS } from '@shared/analysis/classify'
 import { formatScore } from '@shared/analysis/winPercent'
+import { bestMoveInfo, type BestMoveInfo } from '@shared/analysis/bestMove'
 import { fromFen, isValidFen, playUci } from '@shared/chess/position'
 import { START_FEN } from '@shared/fen'
 import { MoveTree, type TreeNode } from '@shared/tree'
@@ -50,6 +51,8 @@ export default function Workspace({ mode }: { mode: 'game' | 'sandbox' }) {
   const [live, setLive] = useState<LiveUpdate | null>(null)
   const [quick, setQuick] = useState<Record<string, AnalysisResult>>({})
   const [hover, setHover] = useState<string[] | null>(null)
+  /** Đã bấm nút "Nước đi tốt nhất" cho nước đang xem chưa. */
+  const [showBest, setShowBest] = useState(false)
   const [posMotifs, setPosMotifs] = useState<Motif[]>([])
   const [tb, setTb] = useState<TablebaseResult | null>(null)
   const [tab, setTab] = useState<Tab>('analysis')
@@ -129,6 +132,15 @@ export default function Workspace({ mode }: { mode: 'game' | 'sandbox' }) {
   const onMainline = mode === 'game' && tree.isMainline(current)
   const stored = onMainline && analysis ? (analysis.positions[current.ply] ?? null) : null
   const ma: MoveAnalysis | null = gameMove && analysis ? (analysis.moves[gameMove - 1] ?? null) : null
+  const best: BestMoveInfo | null = useMemo(() => {
+    if (!ma || !gameMove || !detail || !analysis) return null
+    try {
+      return bestMoveInfo(detail.moves[gameMove - 1]!.fenBefore, current.uci, ma, analysis.positions[gameMove - 1] ?? null)
+    } catch {
+      return null
+    }
+  }, [ma, gameMove, detail, analysis, current.uci])
+  useEffect(() => setShowBest(false), [current])
 
   // Vị trí chưa có đánh giá: đẩy lên đầu hàng đợi, hoặc phân tích nhanh riêng (đánh giá sơ bộ < 0,5s).
   useEffect(() => {
@@ -167,9 +179,12 @@ export default function Workspace({ mode }: { mode: 'game' | 'sandbox' }) {
   const shapes = useMemo(() => {
     const out: DrawShape[] = []
     const bad = ma && ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(ma.classification)
-    if (ma && bad) {
+    if (ma && showBest && best) {
+      // Đã bấm "Nước đi tốt nhất": mũi tên xanh = nước tốt nhất, đỏ/vàng = nước đã đi (nếu kém).
+      if (bad) out.push(arrow(current.uci, ma.classification === 'inaccuracy' ? 'yellow' : 'red'))
+      out.push(arrow(best.uci, 'green'))
+    } else if (ma && bad) {
       out.push(arrow(current.uci, ma.classification === 'inaccuracy' ? 'yellow' : 'red'))
-      if (ma.bestUci && ma.bestUci !== current.uci) out.push(arrow(ma.bestUci, 'green'))
     } else {
       view.lines.slice(0, engineOn ? 3 : 1).forEach((l, i) => {
         if (l.pv[0]) out.push(arrow(l.pv[0], i === 0 ? 'green' : 'paleGreen', i === 0 ? undefined : 7))
@@ -181,7 +196,7 @@ export default function Workspace({ mode }: { mode: 'game' | 'sandbox' }) {
     }
     if (hover) hover.forEach((sq) => out.push(circle(sq, 'yellow')))
     return out
-  }, [ma, current, view.lines, engineOn, hover])
+  }, [ma, current, view.lines, engineOn, hover, showBest, best])
 
   // ---- Điều hướng
   const select = useCallback((n: TreeNode, sound = false) => {
@@ -217,6 +232,22 @@ export default function Workspace({ mode }: { mode: 'game' | 'sandbox' }) {
       if (n) {
         bump()
         select(n, true)
+      }
+    },
+    [tree, current, select]
+  )
+
+  /** Đi thử biến của nước tốt nhất: từ vị trí TRƯỚC nước đã đi, lưu thành nhánh phụ. */
+  const tryBestLine = useCallback(
+    (pv: string[]) => {
+      const parent = current.parent
+      if (!parent) return
+      let n: TreeNode | null = parent
+      for (const uci of pv) n = n && tree.addMove(n, uci)
+      const first = parent.children.find((c) => c.uci === pv[0])
+      if (first) {
+        bump()
+        select(first, true)
       }
     },
     [tree, current, select]
@@ -355,8 +386,24 @@ export default function Workspace({ mode }: { mode: 'game' | 'sandbox' }) {
                     <span className="text-muted">
                       {' '}
                       · Win% {ma.winBefore.toFixed(0)} → {ma.winAfter.toFixed(0)} · accuracy {ma.accuracy.toFixed(0)}
-                      {ma.bestSan && ma.bestSan !== current.san ? ` · tốt nhất: ${ma.bestSan}` : ''}
                     </span>
+                    {best && (
+                      <div className="mt-2">
+                        <Button variant={showBest ? 'default' : 'primary'} onClick={() => setShowBest((v) => !v)}>
+                          {showBest ? 'Ẩn nước đi tốt nhất' : '💡 Nước đi tốt nhất'}
+                        </Button>
+                      </div>
+                    )}
+                    {showBest && best && (
+                      <BestMovePanel
+                        info={best}
+                        playedSan={current.san}
+                        gameId={gameId!}
+                        ply={gameMove!}
+                        onHover={setHover}
+                        onTry={() => tryBestLine(best.pv)}
+                      />
+                    )}
                   </section>
                 )}
 
@@ -758,6 +805,71 @@ function Tools({
       <section className="text-xs text-muted">
         Phím tắt: ←/→ lùi/tiến · ↑/↓ về đầu/cuối · F lật bàn · Space bật/tắt engine. Kéo thả quân để đi thử (lưu thành nhánh phụ).
       </section>
+    </div>
+  )
+}
+
+/** Khung "Nước đi tốt nhất": nước, biến chính, lý do (tính bằng luật) và giải thích chi tiết bằng Gemini. */
+function BestMovePanel({
+  info,
+  playedSan,
+  gameId,
+  ply,
+  onHover,
+  onTry
+}: {
+  info: BestMoveInfo
+  playedSan: string
+  gameId: number
+  ply: number
+  onHover: (sq: string[] | null) => void
+  onTry: () => void
+}) {
+  const diff = info.winBest - info.winPlayed
+  return (
+    <div className="mt-2 space-y-2 rounded border border-accent/50 bg-accent/10 p-3">
+      <div className="text-base font-semibold">
+        {info.isPlayed ? (
+          <>
+            ✓ Bạn đã đi đúng nước tốt nhất: <span className="text-accent">{info.san}</span>
+          </>
+        ) : (
+          <>
+            Nước tốt nhất: <span className="text-accent">{info.san}</span>
+            <span className="ml-2 text-sm font-normal text-muted">(bạn đã đi {playedSan})</span>
+          </>
+        )}
+      </div>
+      {!info.isPlayed && (
+        <div className="text-sm">
+          Tỷ lệ thắng của bạn: <b>{info.winBest.toFixed(0)}%</b> nếu đi {info.san}, so với <b>{info.winPlayed.toFixed(0)}%</b> sau {playedSan}
+          {diff >= 1 ? ` — chênh ${diff.toFixed(0)} điểm.` : '.'}
+        </div>
+      )}
+      <div className="text-sm">
+        <span className="text-muted">Biến chính của engine: </span>
+        <span className="font-mono">{info.line}</span>
+        <button className="ml-2 text-accent hover:underline" onClick={onTry}>
+          Đi thử trên bàn cờ →
+        </button>
+      </div>
+      <div>
+        <div className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Vì sao nước này tốt</div>
+        {info.reasons.length > 0 ? (
+          <ul className="list-disc space-y-1 pl-5 text-sm">
+            {info.reasons.map((r, i) => (
+              <li key={i} onMouseEnter={() => r.squares && onHover(r.squares)} onMouseLeave={() => onHover(null)}>
+                {r.text}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="text-sm text-muted">
+            Không có đòn chiến thuật rõ ràng: đây là nước giữ thế cờ tốt nhất theo engine. Xem biến chính để thấy kế hoạch, hoặc nhờ Gemini giải thích.
+          </div>
+        )}
+      </div>
+      <Explanation req={{ kind: 'best', gameId, ply }} auto={false} label="Giải thích chi tiết (Gemini)" />
     </div>
   )
 }
